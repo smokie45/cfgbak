@@ -30,9 +30,6 @@ do
         v)
             VERBOSE=true
             ;;
-        # c)
-            # CMD=${OPTARG}
-            # ;;
         h)
             echo "Usage: cfgbak [OPTION] [store, restore] FILE"
             echo "  -d      Dry run."
@@ -53,9 +50,24 @@ function EXEC {
     if [ ${DRYRUN} ]; then
         echo "# ${1}"
     else
-        ${1}
+        [ ${VERBOSE} ] && echo "EXEC: ${1}"
+        eval ${1}
     fi
 }
+
+# create a new repo, if it does not exists
+if [ ! -d ${REPO} ]; then
+    echo "Error, no repo at ${REPO}"
+    EXEC "git init ${REPO}"
+fi
+EXEC "git -C ${REPO} checkout ${HOSTNAME}"
+# check for branch and create if necessary
+
+# if relative path, prefix current path
+if [ ! ${SRC:0:1} == "/" ]; then
+    SRC=$(pwd)/${SRC}
+fi
+DST=${REPO}${SRC}
 
 if [ ${VERBOSE} ]; then
     echo "CMD       : ${CMD}"
@@ -64,36 +76,30 @@ if [ ${VERBOSE} ]; then
     echo "Repo      : ${REPO}"
 fi
 
-# create a new repo, if it does not exists
-if [ ! -d ${REPO} ]; then
-    echo "Error, no repo at ${REPO}"
-    EXEC "git init ${REPO}"
-fi
-[ ! -f ${SRC} ] && echo "Error, src not found" && exit
-[ ! ${SRC:0:1} == "/" ] && echo "Error, src not absolut" && exit
-# if [ ${SRC:0:1} == "/" ]; then
-    # DST=${SRC:1}
-# else
-    DST=${REPO}${SRC}
-# fi
+# [ ! ${SRC:0:1} == "/" ] && echo "Error, src not absolut" && exit
 
 case ${CMD} in
     store)
         echo "-> store ${SRC} to ${DST}"
+        [ ! -f ${SRC} ] && echo "Error, src not found" && exit
         # if dst path not exists, create
-        _base=$(dirname ${DST})
-        [ ! -d ${_base} ] && EXEC "mkdir -p ${_base}"
+        DSTPATH=$(dirname ${DST})
+        [ ! -d ${DSTPATH} ] && EXEC "mkdir -p ${DSTPATH}"
         #TODO: store permissions of path
         EXEC "cp -rf ${SRC} ${DST}"
         # store file permissions
-        EXEC "getfacl ${SRC} > ${DST}.facl"
+        EXEC "getfacl -p ${SRC} > ${DST}.facl"
+        EXEC "git -C ${REPO} add ${DST}*"
+        EXEC "git -C ${REPO} commit -m 'backup'"
         ;;
     restore)
-        echo "restore ${DST} to ${SRC}"
-        # check if exist
-        # copy
+        echo "-> restore ${DST} to ${SRC}"
+        [ ! -f ${DST} ] && echo "Error, src not found" && exit
+        SRCPATH=$(dirname ${SRC})
+        EXEC "mkdir -p ${SRCPATH}"
+        EXEC "cp -rf ${DST} ${SRC}"
+        EXEC "setfacl --restore=${DST}.facl"
         # if fail, maybe we miss permission -> sudo
-        # set permissions
         ;;
     *)
         echo "Error, unknown command!"
