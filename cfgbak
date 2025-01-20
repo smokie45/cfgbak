@@ -1,26 +1,27 @@
 #!/bin/bash
 # A script to backup / restore arbitrary system files from multiple hosts to a 
 # shared, versioned location, while caring for file permissions (mod, uid,gui).
-# The script is based on aboslut pathes, to support system files.
-# Versioning is done in git, while each hosts has it's own branch.
+# The script will use aboslut pathes, to support system files. If you provide a 
+# relative path, pwd will be prefixed.
+# Versioning is done in git, while each hosts has it's own branch. This script
+# will only commit and fetch from git, but not e.g. merge. We use the hostname
+# as branch name.
 #
 # Depends: git, getfacl setfacl
 #
 # TODO: 
-#   - merge from other host
+#   - support recursive directories
 #   - restore "all"
-#   - show diff
+#   - show diff, merge from other host ?
 #   - run as user. Request root if necessary.
 #   - create arch configuration packages?
-#   - support recursive directories
 
 REPO="/mnt/extHDD/backup/cfgbak.git"
-_cmd=$1
-SRC=$2
+BRANCH="${HOSTNAME}"
 # get command line arguments and set cfg_ variables
 unset OPTIND
 unset OPTARG
-while getopts hvd _opts
+while getopts hvdn _opts
 do
     case ${_opts} in
         d)
@@ -29,6 +30,9 @@ do
             ;;
         v)
             VERBOSE=true
+            ;;
+        n)
+            NOCOMMIT=true
             ;;
         h)
             echo "Usage: cfgbak [OPTION] [store, restore] FILE"
@@ -52,6 +56,10 @@ function EXEC {
     else
         [ ${VERBOSE} ] && echo "EXEC: ${1}"
         eval ${1}
+        if [ $? -ne 0 ]; then
+            echo "Error on executing ${1}"
+            return 1
+        fi
     fi
 }
 
@@ -60,8 +68,20 @@ if [ ! -d ${REPO} ]; then
     echo "Error, no repo at ${REPO}"
     EXEC "git init ${REPO}"
 fi
-EXEC "git -C ${REPO} checkout ${HOSTNAME}"
+
 # check for branch and create if necessary
+_BRANCH=$(git -C ${REPO} branch --list ${BRANCH})
+if [ -n "${_BRANCH}" ]; then    # quotes needed because of space
+    [ ${VERBOSE} ] && echo "Branch '${_BRANCH}' exists"
+    if [ ! "${_BRANCH:0:1}" == "*" ]; then    
+        EXEC "git -C ${REPO} checkout ${BRANCH}"
+    fi
+else
+    # create an empty branch and check it out and clean working dir
+    [ ${VERBOSE} ] && echo "Branch does not exists"
+    EXEC "git -C ${REPO} checkout --orphan ${BRANCH}"
+    EXEC "git -C ${REPO} rm -rf \*"
+fi
 
 # if relative path, prefix current path
 if [ ! ${SRC:0:1} == "/" ]; then
@@ -76,8 +96,6 @@ if [ ${VERBOSE} ]; then
     echo "Repo      : ${REPO}"
 fi
 
-# [ ! ${SRC:0:1} == "/" ] && echo "Error, src not absolut" && exit
-
 case ${CMD} in
     store)
         echo "-> store ${SRC} to ${DST}"
@@ -90,7 +108,7 @@ case ${CMD} in
         # store file permissions
         EXEC "getfacl -p ${SRC} > ${DST}.facl"
         EXEC "git -C ${REPO} add ${DST}*"
-        EXEC "git -C ${REPO} commit -m 'backup'"
+        [ ! ${NOCOMMIT} ] && EXEC "git -C ${REPO} commit -m 'backup'"
         ;;
     restore)
         echo "-> restore ${DST} to ${SRC}"
@@ -98,6 +116,7 @@ case ${CMD} in
         SRCPATH=$(dirname ${SRC})
         EXEC "mkdir -p ${SRCPATH}"
         EXEC "cp -rf ${DST} ${SRC}"
+        # restore file access control
         EXEC "setfacl --restore=${DST}.facl"
         # if fail, maybe we miss permission -> sudo
         ;;
