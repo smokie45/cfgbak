@@ -6,19 +6,22 @@
 # Versioning is done in git, while each hosts has it's own branch. This script
 # will only commit and fetch from git, but not e.g. merge. We use the hostname
 # as branch name.
-#
+# Attention: Security review pending!!!
 # Depends: git, getfacl setfacl
 #
 # TODO: 
+#   - add /etc/cfgbak.cfg 
 #   - support recursive directories
 #   - restore "all"
 #   - show diff, merge from other host ?
 #   - run as user. Request root if necessary.
 #   - create arch configuration packages?
-
-REPO="/mnt/extHDD/backup/cfgbak.git"
-BRANCH="${HOSTNAME}"
 # get command line arguments and set cfg_ variables
+CFGFILE="/etc/cfgbak.cfg"
+# Defaults in case no cfg file is found
+REPO="/tmp/cfgbak.git"
+BRANCH="${HOSTNAME}"
+
 unset OPTIND
 unset OPTARG
 while getopts hvdn _opts
@@ -63,6 +66,26 @@ function EXEC {
     fi
 }
 
+if [ -f /etc/cfgbak.cfg ]; then
+    #TODO: do we need more security?
+    source /etc/cfgbak.cfg
+else
+    [ ${VERBOSE} ] && echo "Warning, '/etc/cfgbak.cfg' not found. Using defaults."
+fi
+
+# if relative path, prefix current path
+if [ ! ${SRC:0:1} == "/" ]; then
+    SRC=$(pwd)/${SRC}
+fi
+DST=${REPO}${SRC}
+
+if [ ${VERBOSE} ]; then
+    echo "CMD       : ${CMD}"
+    echo "SRC       : ${SRC}"
+    [ ${DRYRUN} ] && echo "Dry-run   : true"
+    echo "Repo      : ${REPO}"
+fi
+
 # create a new repo, if it does not exists
 if [ ! -d ${REPO} ]; then
     echo "Error, no repo at ${REPO}"
@@ -81,19 +104,6 @@ else
     [ ${VERBOSE} ] && echo "Branch does not exists"
     EXEC "git -C ${REPO} checkout --orphan ${BRANCH}"
     EXEC "git -C ${REPO} rm -rf \*"
-fi
-
-# if relative path, prefix current path
-if [ ! ${SRC:0:1} == "/" ]; then
-    SRC=$(pwd)/${SRC}
-fi
-DST=${REPO}${SRC}
-
-if [ ${VERBOSE} ]; then
-    echo "CMD       : ${CMD}"
-    echo "SRC       : ${SRC}"
-    [ ${DRYRUN} ] && echo "Dry-run   : true"
-    echo "Repo      : ${REPO}"
 fi
 
 case ${CMD} in
