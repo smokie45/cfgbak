@@ -97,7 +97,7 @@ if [ ${VERBOSE} ]; then
     echo "Repo      : ${REPO}"
     echo "Branch    : ${BRANCH}"
 fi
-exit
+
 # create a new repo, if it does not exists
 if [ ! -d ${REPO} ]; then
     echo "Error, no repo at ${REPO}"
