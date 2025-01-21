@@ -19,7 +19,7 @@
 # get command line arguments and set cfg_ variables
 # CFGFILE="/etc/cfgbak.cfg"
 CFGFILE="/etc/cfgbak.cfg"
-CFGFILEMOD="644:1000:1000"
+CFGFILEMOD="644:0:0"
 # Defaults in case no cfg file is found
 REPO="/tmp/cfgbak.git"
 BRANCH=${HOSTNAME}
