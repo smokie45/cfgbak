@@ -18,7 +18,7 @@
 #   - create arch configuration packages?
 # get command line arguments and set cfg_ variables
 # CFGFILE="/etc/cfgbak.cfg"
-CFGFILE="./cfgbak.cfg"
+CFGFILE="/etc/cfgbak.cfg"
 CFGFILEMOD="644:1000:1000"
 # Defaults in case no cfg file is found
 REPO="/tmp/cfgbak.git"
