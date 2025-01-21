@@ -17,10 +17,12 @@
 #   - run as user. Request root if necessary.
 #   - create arch configuration packages?
 # get command line arguments and set cfg_ variables
-CFGFILE="/etc/cfgbak.cfg"
+# CFGFILE="/etc/cfgbak.cfg"
+CFGFILE="./cfgbak.cfg"
+CFGFILEMOD="644:1000:1000"
 # Defaults in case no cfg file is found
 REPO="/tmp/cfgbak.git"
-BRANCH="${HOSTNAME}"
+BRANCH=${HOSTNAME}
 
 unset OPTIND
 unset OPTARG
@@ -66,11 +68,21 @@ function EXEC {
     fi
 }
 
-if [ -f /etc/cfgbak.cfg ]; then
-    #TODO: do we need more security?
-    source /etc/cfgbak.cfg
+if [ -f ${CFGFILE} ]; then
+    # check if cfg file has expected user and mod.
+    if [ $(stat -c "%a:%u:%g" ${CFGFILE}) != ${CFGFILEMOD} ]; then
+        echo "Error, '${CFGFILE}' has not ${CFGFILEMOD}! Ignoring!"
+    else
+        IFS="="
+        while read -r _cfg _val
+        do
+            [ ${_cfg} == "REPO" ] && REPO=${_val} && continue
+            [ ${_cfg} == "BRANCH" ] && BRANCH=${_val} && continue
+        done < "${CFGFILE}"
+        unset IFS
+    fi
 else
-    [ ${VERBOSE} ] && echo "Warning, '/etc/cfgbak.cfg' not found. Using defaults."
+    [ ${VERBOSE} ] && echo "Warning, '${CFGFILE}' not found. Using defaults."
 fi
 
 # if relative path, prefix current path
@@ -82,10 +94,10 @@ DST=${REPO}${SRC}
 if [ ${VERBOSE} ]; then
     echo "CMD       : ${CMD}"
     echo "SRC       : ${SRC}"
-    [ ${DRYRUN} ] && echo "Dry-run   : true"
     echo "Repo      : ${REPO}"
+    echo "Branch    : ${BRANCH}"
 fi
-
+exit
 # create a new repo, if it does not exists
 if [ ! -d ${REPO} ]; then
     echo "Error, no repo at ${REPO}"
